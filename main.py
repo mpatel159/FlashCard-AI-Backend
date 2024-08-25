@@ -1,5 +1,5 @@
 import logging
-#from openai import OpenAI
+from openai import OpenAI
 import json
 import os
 from flask import Flask, request, jsonify
@@ -7,7 +7,7 @@ from flask_cors import CORS
 import base64
 import requests
 import firebase_admin
-from firebase_admin import credentials
+from firebase_admin import credentials, firestore
 
 cred = credentials.Certificate("flashcrd-firebase.json")
 firebase_admin.initialize_app(cred)
@@ -18,6 +18,9 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 #client = OpenAI()
+
+# initialize firebase
+db = firestore.client()
 
 
 @app.route('/health-check')
@@ -40,6 +43,24 @@ You should return in the following JSON format:
   ]
 }
 """
+
+@app.route('/flashcards' , methods=['POST'])
+def generate_flashcards():
+    logger.info("in AI endpoint")
+    data = request.get_data(as_text=True)
+    response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": oAI_prompt},
+                {"role": "user", "content": data},
+            ]
+        )
+    flashcards = json.loads(response.choices[0].message['content'])
+        
+    # Save flashcards to Firestore
+    flashcards_ref = db.collection('flashcards').add(flashcards)
+
+    return jsonify({"id": flashcards_ref[1].id, "flashcards": flashcards['flashcards']})
 
 
 if __name__ == '__main__':
